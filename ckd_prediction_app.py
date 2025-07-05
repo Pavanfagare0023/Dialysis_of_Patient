@@ -1,58 +1,59 @@
+# ckd_prediction_app.py
 # .....................import Lib........................
 
-
+import streamlit as st
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import accuracy_score, classification_report
 import joblib
+import google.generativeai as genai
 
-# 1. Load dataset
-df = pd.read_csv("C:/Users/fagar/chronic_kidney_disease.csv")
+# --------------------------- Gemini Flash 1.5 Setup ---------------------------
+GEMINI_API_KEY = "AIzaSyCAY2rHPfIpkKRiLKY9czqSuuJ3gc0zUo4"  #Replace with your actual key
 
-# 2. Replace missing values represented by '?'
-df.replace("?", np.nan, inplace=True)
+genai.configure(api_key=GEMINI_API_KEY)
+model_gen = genai.GenerativeModel("gemini-1.5-flash")
 
-# 3. Drop rows with too many missing values
-df.dropna(thresh=10, inplace=True)
+# --------------------------- Load Trained Model ---------------------------
+model = joblib.load("ckd_rf_model.pkl")
 
-# 4. Handle missing values and convert columns
-for col in df.columns:
-    if df[col].dtype == object:
-        try:
-            df[col] = pd.to_numeric(df[col])
-        except:
-            df[col].fillna(df[col].mode()[0], inplace=True)
-            df[col] = LabelEncoder().fit_transform(df[col])
-    else:
-        df[col] = pd.to_numeric(df[col], errors='coerce')
-        df[col].fillna(df[col].median(), inplace=True)
+st.set_page_config(page_title="CKD Dialysis Prediction", layout="centered")
+st.title("Chronic Kidney Disease Dialysis Prediction")
+st.write("Provide your test values below to predict dialysis requirement.")
 
-# 5. Drop non-required columns
-if 'id' in df.columns:
-    df.drop('id', axis=1, inplace=True)
+# --------------------------- User Input ---------------------------
+age = st.slider("Age", 2, 90, 45)
+bp = st.slider("Blood Pressure", 50, 180, 120)
+sg = st.selectbox("Specific Gravity", [1.005, 1.010, 1.015, 1.020, 1.025])
+al = st.slider("Albumin", 0, 5, 0)
+su = st.slider("Sugar", 0, 5, 0)
+bgr = st.slider("Blood Glucose Random", 22, 490, 150)
+bu = st.slider("Blood Urea", 1, 400, 50)
+sc = st.slider("Serum Creatinine", 0.4, 76.0, 1.2)
+sod = st.slider("Sodium", 111, 163, 140)
+pot = st.slider("Potassium", 2.5, 47.0, 4.5)
+hemo = st.slider("Hemoglobin", 3.1, 17.8, 12.0)
 
-# 6. Fix target column name from 'class' to 'classification'
-target_col = 'classification'
+input_data = pd.DataFrame([{
+    'age': age, 'bp': bp, 'sg': sg, 'al': al, 'su': su,
+    'bgr': bgr, 'bu': bu, 'sc': sc, 'sod': sod, 'pot': pot, 'hemo': hemo
+}])
 
-# 7. Define features and label
-X = df.drop(target_col, axis=1)
-y = LabelEncoder().fit_transform(df[target_col])
+# --------------------------- Predict Button ---------------------------
+if st.button("Predict Dialysis Need"):
+    prediction = model.predict(input_data)[0]
+    result_text = "Dialysis Required" if prediction == 1 else "Dialysis Not Required"
+    st.subheader(f"Prediction Result: {result_text}")
 
-# 8. Train-test split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    # --------------------------- Gemini Explanation ---------------------------
+    prompt = f"""
+    Based on the following input data:
+    {input_data.to_dict(orient='records')[0]}
 
-# 9. Train model
-model = RandomForestClassifier(n_estimators=100, random_state=42)
-model.fit(X_train, y_train)
-
-# 10. Evaluate
-y_pred = model.predict(X_test)
-print("Accuracy:", accuracy_score(y_test, y_pred))
-print("\n", classification_report(y_test, y_pred))
-
-# 11. Save model
-joblib.dump(model, "ckd_rf_model.pkl")
-print("Model saved as ckd_rf_model.pkl")
+    Explain in simple medical terms why this patient may or may not need dialysis.
+    """
+    try:
+        gemini_response = model_gen.generate_content(prompt)
+        st.markdown("###Explanation from Gemini:")
+        st.write(gemini_response.text)
+    except Exception as e:
+        st.error("Error calling Gemini API. Please check your key or quota.")
