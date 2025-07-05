@@ -1,4 +1,3 @@
-# ckd_rf_mode.py
 # .....................import Lib........................
 
 import streamlit as st
