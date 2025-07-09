@@ -1,6 +1,5 @@
 # .....................import Lib........................
 
-
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -54,5 +53,7 @@ print("Accuracy:", accuracy_score(y_test, y_pred))
 print("\n", classification_report(y_test, y_pred))
 
 # 11. Save model
-joblib.dump(model, "ckd_rf_model.pkl")
-print("Model saved as ckd_rf_model.pkl")
+joblib.dump(model, "Dialysis_Status.pkl")
+print("Model saved as Dialysis_Status.pkl")
+
+
